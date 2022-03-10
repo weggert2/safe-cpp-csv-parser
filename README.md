@@ -28,14 +28,14 @@ int main(){
   in.read_header(err, io::ignore_extra_column, "vendor", "size", "speed");
   if (err)
   {
-    printf("%s\n", err->get_error());
+    printf("%s\n", err->get_error().c_str());
     return 1;
   }
   std::string vendor; int size; double speed;
   while(in.read_row(err, vendor, size, speed)){
     if (err)
     {
-      printf("%s\n", err->get_error());
+      printf("%s\n", err->get_error().c_str());
       return 1;
     }
     // do stuff with the data
