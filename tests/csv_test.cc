@@ -1,3 +1,5 @@
+#include "csv.h"
+
 #include <gtest/gtest.h>
 
 TEST(csv, hello)
