@@ -24,8 +24,8 @@ The following small example should contain most of the syntax you need to use th
 # include "csv.h"
 
 int main(){
-  io::CSVReader<3> in("ram.csv");
   std::shared_ptr<io::error::error> err;
+  io::CSVReader<3> in(err, "ram.csv");
   in.read_header(err, io::ignore_extra_column, "vendor", "size", "speed");
   if (err)
   {
