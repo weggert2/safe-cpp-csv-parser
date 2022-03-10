@@ -14,7 +14,6 @@ Most of this README is copied directly from fast-cpp-csv-parser, with minor edit
   * Can read multiple GB files in reasonable time.
   * Support for custom columns separators (i.e. Tab separated value files are supported), quote escaped strings, automatic space trimming. 
   * Works with `*`nix and Windows newlines and automatically ignores UTF-8 BOMs.
-  * Exception classes with enough context to format useful error messages. what() returns error messages ready to be shown to a user. 
 
 ## Getting Started
 
