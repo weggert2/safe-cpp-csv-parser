@@ -68,7 +68,7 @@ public:
     virtual void format_error_message() = 0;
 
     void set_file_name(const std::string &file_name_)           { file_name = file_name_; }
-    void set_file_line(int file_line_)                          { file_line = file_line;  }
+    void set_file_line(int file_line_)                          { file_line = file_line_;  }
     void set_errno(int errno__)                                 { errno_ = errno__;       }
     void set_column_name(const std::string &column_name_)       { column_name = column_name_; }
     void set_column_content(const std::string &column_content_) { column_content = column_content_; }
@@ -108,7 +108,7 @@ public:
         ss << "Can not open file \"" << get_file_name() << "\"";
         if (get_errno() != 0)
         {
-            ss << "because \"" << get_errno() << "\".";
+            ss << " because \"" << std::strerror(get_errno()) << "\".";
         }
 
         error = ss.str();
@@ -558,8 +558,8 @@ public:
     void format_error_message() override
     {
         std::stringstream ss;
-        ss << "Extra column " << get_column_name() << " in header of file "
-           << get_file_name();
+        ss << "Extra column \"" << get_column_name() << "\" in header of file "
+           << "\"" << get_file_name() << "\"";
 
         error = ss.str();
     }
@@ -571,8 +571,8 @@ public:
     void format_error_message() override
     {
         std::stringstream ss;
-        ss <<  "Missing column " << get_column_name() << " in header of file "
-           << get_file_name();
+        ss <<  "Missing column \"" << get_column_name() << "\" in header of file "
+           << "\"" << get_file_name() << "\"";
 
         error = ss.str();
     }
@@ -584,8 +584,8 @@ public:
     void format_error_message() override
     {
         std::stringstream ss;
-        ss << "Duplicated column " << get_column_name() << " in header of file "
-           << get_file_name();
+        ss << "Duplicated column \"" << get_column_name() << "\" in header of file "
+           << "\"" << get_file_name() << "\"";
 
         error = ss.str();
     }
@@ -597,7 +597,7 @@ public:
     void format_error_message() override
     {
         std::stringstream ss;
-        ss << "Header missing in file " << get_file_name();
+        ss << "Header missing in file \"" << get_file_name() << "\"";
 
         error = ss.str();
     }
@@ -610,7 +610,7 @@ public:
     {
         std::stringstream ss;
         ss <<  "Too few columns in line " << get_file_line() << " in file "
-           << get_file_name();
+           << "\"" << get_file_name() << "\"";
 
         error = ss.str();
     }
@@ -623,7 +623,7 @@ public:
     {
         std::stringstream ss;
         ss << "Too many columns in line " << get_file_line() << " in file "
-           << get_file_name();
+           << "\"" << get_file_name() << "\"";
 
         error = ss.str();
     }
@@ -727,9 +727,8 @@ template<char ... trim_char_list>
 class trim_chars
 {
 private:
-    constexpr static bool is_trim_char(char c)
+    constexpr static bool is_trim_char(char)
     {
-        (void)c;
         return false;
     }
 
@@ -962,7 +961,7 @@ bool chop_next_column(
 
     if (line == nullptr)
     {
-        err = std::make_shared<error::error>();
+        err = std::make_shared<error::internal_error>();
         err->set_error("Internal error: line is null in chop_next_column");
         return false;
     }
@@ -1031,6 +1030,8 @@ bool parse_line(
         err = std::make_shared<::io::error::too_many_columns>();
         return false;
     }
+
+    return true;
 }
 
 template<unsigned column_count, class trim_policy, class quote_policy>
@@ -1182,6 +1183,12 @@ bool parse_unsigned_integer(
         return false;
     }
 
+    if(*col == '-')
+    {
+        err = std::make_shared<error::integer_must_be_positive>();
+        return false;
+    }
+
     x = 0;
     while(*col != '\0')
     {
@@ -1208,13 +1215,13 @@ bool parse_unsigned_integer(
 
 template<class overflow_policy> bool parse(char *col, unsigned char &x, std::shared_ptr<error::error> &err)
     {return parse_unsigned_integer<overflow_policy>(col, x, err);}
-template<class overflow_policy>void parse(char *col, unsigned short &x, std::shared_ptr<error::error> &err)
+template<class overflow_policy> bool parse(char *col, unsigned short &x, std::shared_ptr<error::error> &err)
     {return parse_unsigned_integer<overflow_policy>(col, x, err);}
-template<class overflow_policy>void parse(char *col, unsigned int &x, std::shared_ptr<error::error> &err)
+template<class overflow_policy> bool parse(char *col, unsigned int &x, std::shared_ptr<error::error> &err)
     {return parse_unsigned_integer<overflow_policy>(col, x, err);}
-template<class overflow_policy>void parse(char *col, unsigned long &x, std::shared_ptr<error::error> &err)
+template<class overflow_policy> bool parse(char *col, unsigned long &x, std::shared_ptr<error::error> &err)
     {return parse_unsigned_integer<overflow_policy>(col, x, err);}
-template<class overflow_policy>void parse(char *col, unsigned long long &x, std::shared_ptr<error::error> &err)
+template<class overflow_policy> bool parse(char *col, unsigned long long &x, std::shared_ptr<error::error> &err)
     {return parse_unsigned_integer<overflow_policy>(col, x, err);}
 
 template<class overflow_policy, class T>
@@ -1505,12 +1512,22 @@ public:
             if(!line)
             {
                 err = std::make_shared<error::header_missing>();
+                err->set_file_name(get_truncated_file_name());
+                err->format_error_message();
                 return false;
             }
         }while(comment_policy::is_comment(line));
 
-        return detail::parse_header_line<column_count, trim_policy, quote_policy>(
+        bool success = detail::parse_header_line<column_count, trim_policy, quote_policy>(
             line, col_order, column_names, ignore_policy, err);
+
+        if (!success)
+        {
+            err->set_file_name(get_truncated_file_name());
+            err->format_error_message();
+        }
+
+        return success;
     }
 
     template<class ...ColNames>
@@ -1629,8 +1646,15 @@ public:
         char *line;
         do{
             line = in.next_line(err);
-            if(!line || err)
+            if(!line)
             {
+                return false;
+            }
+            if (err)
+            {
+                err->set_file_name(in.get_truncated_file_name());
+                err->set_file_line(in.get_file_line());
+                err->format_error_message();
                 return false;
             }
         }while(comment_policy::is_comment(line));
@@ -1643,7 +1667,16 @@ public:
             return false;
         }
 
-        return parse_helper(0, err, cols...);
+        parse_helper(0, err, cols...);
+        if (err)
+        {
+            err->set_file_name(in.get_truncated_file_name());
+            err->set_file_line(in.get_file_line());
+            err->format_error_message();
+            return false;
+        }
+
+        return true;
     }
 };
 
