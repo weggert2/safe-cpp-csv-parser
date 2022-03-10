@@ -1,6 +1,10 @@
-# Fast C++ CSV Parser
+# Safe (and fast) C++ CSV Parser
 
-This is a small, easy-to-use and fast header-only library for reading comma separated value (CSV) files. 
+This is a small, easy-to-use and safe header-only library for reading comma separated value (CSV) files. It is a fork of Ben Strasser's excellent fast csv parser (https://github.com/ben-strasser/fast-cpp-csv-parser), and rewritten to avoid any exceptions and threading.  The intention is to sacrifice performance for safety.
+
+The interface is the same as fast-cpp-csv-parser, except now you need to pass in an error struct to each read call. By inspecting the error upon return, you can decide what to do. See "Getting Started" for an example.
+
+Most of this README is copied directly from fast-cpp-csv-parser, with minor edits to reflect the changes in the API.
 
 ## Features
 
@@ -21,9 +25,20 @@ The following small example should contain most of the syntax you need to use th
 
 int main(){
   io::CSVReader<3> in("ram.csv");
-  in.read_header(io::ignore_extra_column, "vendor", "size", "speed");
+  std::shared_ptr<io::error::error> err;
+  in.read_header(err, io::ignore_extra_column, "vendor", "size", "speed");
+  if (err)
+  {
+    printf("%s\n", err->get_error());
+    return 1;
+  }
   std::string vendor; int size; double speed;
-  while(in.read_row(vendor, size, speed)){
+  while(in.read_row(err, vendor, size, speed)){
+    if (err)
+    {
+      printf("%s\n", err->get_error());
+      return 1;
+    }
     // do stuff with the data
   }
 }
@@ -31,25 +46,15 @@ int main(){
 
 ## Installation
 
-The library only needs a standard conformant C++11 compiler. It has no further dependencies. The library is completely contained inside a single header file and therefore it is sufficient to copy this file to some place on your include path. The library does not have to be explicitly build. 
+The library only needs a standard conformant C++11 compiler. It has no further dependencies. The library is completely contained inside a single header file and therefore it is sufficient to copy this file to some place on your include path. The library does not have to be explicitly build.
 
-Note however, that threads are used and some compiler (for example GCC) require you to link against additional libraries to make it work. With GCC it is important to add -lpthread as the last item when linking, i.e. the order in 
+Remember that the library makes use of C++11 features and therefore you have to enable support for it (f.e. add -std=c++14 or -std=gnu++0x).
 
-```
-g++ -std=c++0x a.o b.o -o prog -lpthread
-```
-
-is important. If you for some reason do not want to use threads you can define CSV_IO_NO_THREAD before including the header.
-
-Remember that the library makes use of C++11 features and therefore you have to enable support for it (f.e. add -std=c++0x or -std=gnu++0x). 
-
-The library was developed and tested with GCC 4.6.1
-
-Note that VS2013 is not C++11 compilant and will therefore not work out of the box. See [here](https://code.google.com/p/fast-cpp-csv-parser/issues/detail?id=6) for what needs to be adjusted to make the code work.
+The library was developed and tested with GCC 9.4
 
 ## Documentation
 
-The libary provides two classes: 
+The libary provides two classes:
 
   * `LineReader`: A class to efficiently read large files line by line.
   * `CSVReader`: A class that efficiently reads large CSV files.
@@ -62,13 +67,13 @@ Note that everything is contained in the `io` namespace.
 class LineReader{
 public:
   // Constructors
-  LineReader(some_string_type file_name);
-  LineReader(some_string_type file_name, std::FILE*source);
-  LineReader(some_string_type file_name, std::istream&source);
-  LineReader(some_string_type file_name, std::unique_ptr<ByteSourceBase>source);
+  LineReader(std::shared_ptr<io::error::error> &err, some_string_type file_name);
+  LineReader(std::shared_ptr<io::error::error> &err, some_string_type file_name, std::FILE*source);
+  LineReader(std::shared_ptr<io::error::error> &err, some_string_type file_name, std::istream&source);
+  LineReader(std::shared_ptr<io::error::error> &err, some_string_type file_name, std::unique_ptr<ByteSourceBase>source);
 
   // Reading
-  char*next_line();
+  char *next_line(std::shared_ptr<io::error::error> &err);
 
   // File Location
   void set_file_line(unsigned);
@@ -99,7 +104,7 @@ Lines are read by calling the `next_line` function. It returns a pointer to a nu
 Looping over all the lines in a file can be done in the following way.
 ```cpp
 LineReader in(...);
-while(char*line = in.next_line()){
+while(char *line = in.next_line(err)){
   ...
 }
 ```
@@ -117,7 +122,7 @@ template<
   unsigned column_count,
   class trim_policy = trim_chars<' ', '\t'>, 
   class quote_policy = no_quote_escape<','>,
-  class overflow_policy = throw_on_overflow,
+  class overflow_policy = set_to_max_on_overflow,
   class comment_policy = no_comment
 >
 class CSVReader{
@@ -126,13 +131,13 @@ public:
   // same as for LineReader
 
   // Parsing Header
-  void read_header(ignore_column ignore_policy, some_string_type col_name1, some_string_type col_name2, ...);
+  void read_header(std::shared_ptr<io::error::error> &err, ignore_column ignore_policy, some_string_type col_name1, some_string_type col_name2, ...);
   void set_header(some_string_type col_name1, some_string_type col_name2, ...);
   bool has_column(some_string_type col_name)const;
 
   // Read
-  char*next_line();
-  bool read_row(ColType1&col1, ColType2&col2, ...);
+  char*next_line(std::shared_ptr<io::error::error> &err);
+  bool read_row(std::shared_ptr<io::error::error> &err, ColType1&col1, ColType2&col2, ...);
 
   // File Location 
   void set_file_line(unsigned);
@@ -173,7 +178,6 @@ The quote policy indicates how string should be escaped. It also specifies the c
 
 The overflow policy indicates what should be done if the integers in the input are too large to fit into the variables. There following policies are predefined:
 
-  * `throw_on_overflow` : Throw an `error::integer_overflow` or `error::integer_underflow` exception.
   * `ignore_overflow` : Do nothing and let the overflow happen.
   * `set_to_max_on_overflow` : Set the value to `numeric_limits<...>::max()` (or to the min-pendant).
 
@@ -202,9 +206,10 @@ When using `ignore_missing_column` it is a good idea to initialize the variables
 ```cpp
 // The file only contains column "a"
 CSVReader<2>in(...);
-in.read_header(ignore_missing_column, "a", "b");
+std::shared_ptr<io::error::error> err;
+in.read_header(err, ignore_missing_column, "a", "b");
 int a,b = 42;
-while(in.read_row(a,b)){
+while(in.read_row(err, a,b)){
   // a contains the value from the file
   // b is left unchanged by read_row, i.e., it is 42
 }
@@ -215,12 +220,13 @@ If only some columns are optional or their default value depends on other column
 ```cpp
 // The file only contains the columns "a" and "b"
 CSVReader<3>in(...);
-in.read_header(ignore_missing_column, "a", "b", "sum");
+std::shared_ptr<io::error::error> err;
+in.read_header(err, ignore_missing_column, "a", "b", "sum");
 if(!in.has_column("a") || !in.has_column("b"))
-  throw my_neat_error_class();
+  return my_neat_error_class();
 bool has_sum = in.has_column("sum");
 int a,b,sum;
-while(in.read_row(a,b,sum)){
+while(in.read_row(err,a,b,sum)){
   if(!has_sum)
     sum = a+b;
 }
@@ -245,10 +251,6 @@ Note that there is no inherent overhead to using `char*` and then interpreting i
 
 ## FAQ
 
-Q: The library is throwing a std::system_error with code -1. How to get it to work?
-
-A: Your compiler's std::thread implementation is broken. Define CSV\_IO\_NO\_THREAD to disable threading support.
-
 
 Q: My values are not just ints or strings. I want to parse my customized type. Is this possible?
 
@@ -258,11 +260,6 @@ A: Read a `char*` and parse the string. At first this seems expensive but it is 
 Q: I get lots of compiler errors when compiling the header! Please fix it. :(
 
 A: Have you enabled the C++11 mode of your compiler? If you use GCC you have to add -std=c++0x to the commandline. If this does not resolve the problem, then please open a ticket.
-
-
-Q: The library crashes when parsing large files! Please fix it. :(
-
-A: When using GCC have you linked against -lpthread? Read the installation section for details on how to do this. If this does not resolve the issue then please open a ticket. (The reason why it only crashes only on large files is that the first chuck is read synchronous and if the whole file fits into this chuck then no asynchronous call is performed.) Alternatively you can define CSV\_IO\_NO\_THREAD.
 
 
 Q: Does the library support UTF?
