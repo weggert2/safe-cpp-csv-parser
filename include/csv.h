@@ -985,6 +985,376 @@ public:
     }
 };
 
+template<char sep>
+class no_quote_escape
+{
+public:
+    static const char *find_next_column_end(
+        const char *col_begin,
+        std::string &err)
+    {
+        (void)err;
+        while(*col_begin != sep && *col_begin != '\0')
+        {
+            ++col_begin;
+        }
+
+        return col_begin;
+    }
+
+    static void unescape(char *&a, char *&b)
+    {
+        (void)a;
+        (void)b;
+    }
+};
+
+template<char sep, char quote>
+class double_quote_escape
+{
+public:
+    static const char *find_next_column_end(
+        const char *col_begin,
+        std::string &err)
+    {
+        while(*col_begin != sep && *col_begin != '\0')
+        {
+            if(*col_begin != quote)
+            {
+                ++col_begin;
+            }
+            else
+            {
+                do {
+                    ++col_begin;
+                    while(*col_begin != quote)
+                    {
+                        if(*col_begin == '\0')
+                        {
+                            error::escaped_string_not_closed err_;
+                            err_.format_error_message();
+                            err = std::string(err_.what());
+                            return nullptr;
+                        }
+                        ++col_begin;
+                    }
+                    ++col_begin;
+                } while(*col_begin == quote);
+            }
+        }
+        return col_begin;
+    }
+
+    static void unescape(
+        char *&col_begin,
+        char *&col_end)
+    {
+        if(col_end - col_begin >= 2)
+        {
+            if(*col_begin == quote && *(col_end-1) == quote)
+            {
+                ++col_begin;
+                --col_end;
+                char *out = col_begin;
+                for(char*in = col_begin; in!=col_end; ++in)
+                {
+                    if(*in == quote && (in+1) != col_end && *(in+1) == quote)
+                    {
+                        ++in;
+                    }
+                    *out = *in;
+                    ++out;
+                }
+                col_end = out;
+                *col_end = '\0';
+            }
+        }
+    }
+};
+
+class ignore_overflow
+{
+public:
+    template<class T>
+    static void on_overflow(T&){}
+
+    template<class T>
+    static void on_underflow(T&){}
+};
+
+class set_to_max_on_overflow
+{
+public:
+    template<class T>
+    static void on_overflow(T &x)
+    {
+        /*
+         * Using (std::numeric_limits<T>::max) instead of std::numeric_limits<T>::max
+         * to make code including windows.h with its max macro happy
+         */
+        x = (std::numeric_limits<T>::max)();
+    }
+
+    template<class T>
+    static void on_underflow(T &x)
+    {
+        x = (std::numeric_limits<T>::min)();
+    }
+};
+
+namespace detail
+{
+
+template<class quote_policy>
+bool chop_next_column(
+    char *&line,
+    char *&col_begin,
+    char *&col_end,
+    std::string &err)
+{
+    if (line == nullptr)
+    {
+        err += "Internal error: line is null in chop_next_column\n";
+        return false;
+    }
+
+    col_begin = line;
+
+    /* The col_begin + (... - col_begin) removes the constness */
+    col_end = col_begin + (quote_policy::find_next_column_end(col_begin, err) - col_begin);
+
+    if (!err.empty())
+    {
+        return false;
+    }
+
+    if(*col_end == '\0')
+    {
+        line = nullptr;
+    }
+    else
+    {
+        *col_end = '\0';
+        line = col_end + 1;
+    }
+
+    return true;
+}
+
+template<class trim_policy, class quote_policy>
+bool parse_line(
+   char *line,
+   char **sorted_col,
+   const std::vector<int> &col_order,
+   std::string &err)
+{
+    for (int i : col_order)
+    {
+        if(line == nullptr)
+        {
+            ::io::error::too_few_columns err_;
+            err_.format_error_message();
+            err = std::string(err_.what());
+            return false;
+        }
+
+        char *col_begin;
+        char *col_end;
+
+        if (!chop_next_column<quote_policy>(line, col_begin, col_end, err))
+        {
+            return false;
+        }
+
+        if (i != -1)
+        {
+            trim_policy::trim(col_begin, col_end);
+            quote_policy::unescape(col_begin, col_end);
+            sorted_col[i] = col_begin;
+        }
+    }
+
+    if(line != nullptr)
+    {
+        ::io::error::too_many_columns err_;
+        err_.format_error_message();
+        err = std::string(err_.what());
+        return false;
+    }
+}
+
+template<unsigned column_count, class trim_policy, class quote_policy>
+bool parse_header_line(
+    char *line,
+    std::vector<int> &col_order,
+    const std::string *col_name,
+    ignore_column ignore_policy,
+    std::string &err)
+{
+    col_order.clear();
+
+    bool found[column_count];
+    std::fill(found, found + column_count, false);
+    while(line)
+    {
+        char *col_begin;
+        char *col_end;
+        if (!chop_next_column<quote_policy>(line, col_begin, col_end, err))
+        {
+            return false;
+        }
+
+        trim_policy::trim(col_begin, col_end);
+        quote_policy::unescape(col_begin, col_end);
+
+        for(unsigned i = 0; i < column_count; ++i)
+        {
+            if(col_begin == col_name[i])
+            {
+                if(found[i])
+                {
+                    error::duplicated_column_in_header err_;
+                    err_.set_column_name(col_begin);
+                    err_.format_error_message();
+                    err = std::string(err_.what());
+                    return false;
+                }
+
+                found[i] = true;
+                col_order.push_back(i);
+                col_begin = 0;
+                break;
+            }
+        }
+        if(col_begin)
+        {
+            if(ignore_policy & ::io::ignore_extra_column)
+            {
+                col_order.push_back(-1);
+            }
+            else
+            {
+                error::extra_column_in_header err_;
+                err_.set_column_name(col_begin);
+                err_.format_error_message();
+                err = std::string(err_.what());
+                return false;
+            }
+        }
+    }
+    if(!(ignore_policy & ::io::ignore_missing_column))
+    {
+        for(unsigned i = 0; i < column_count; ++i)
+        {
+            if(!found[i])
+            {
+                error::missing_column_in_header err_;
+                err_.set_column_name(col_name[i].c_str());
+                err_.format_error_message();
+                err = std::string(err_.what());
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
+template<class overflow_policy>
+bool parse(
+    char *col,
+    char &x,
+    std::string &err)
+{
+    if(!*col)
+    {
+        error::invalid_single_character err_;
+        err_.format_error_message();
+        err = std::string(err_.what());
+        return false;
+    }
+
+    x = *col;
+    ++col;
+
+    if(*col)
+    {
+        error::invalid_single_character err_;
+        err_.format_error_message();
+        err = std::string(err_.what());
+        return false;
+    }
+
+    return true;
+}
+
+template<class overflow_policy>
+bool parse(
+    char *col,
+    std::string &x,
+    std::string &err)
+{
+    (void)err;
+    x = col;
+    return true;
+}
+
+template<class overflow_policy>
+bool parse(
+    char *col,
+    const char *&x,
+    std::string &err)
+{
+    (void)err;
+    x = col;
+    return true;
+}
+
+template<class overflow_policy>
+bool parse(
+    char *col,
+    char *&x,
+    std::string &err)
+{
+    (void)err;
+    x = col;
+    return true;
+}
+
+template<class overflow_policy, class T>
+bool parse_unsigned_integer(
+    const char *col,
+    T &x,
+    std::string &err)
+{
+    x = 0;
+    while(*col != '\0')
+    {
+        if('0' <= *col && *col <= '9')
+        {
+            T y = *col - '0';
+            if(x > ((std::numeric_limits<T>::max)()-y)/10)
+            {
+                overflow_policy::on_overflow(x);
+                return true;
+            }
+            x = 10*x+y;
+        }
+        else
+        {
+            error::no_digit err_;
+            err_.format_error_message();
+            err = std::string(err_.what());
+            return false;
+        }
+        ++col;
+    }
+
+    return true;
+}
+
+} // end namespace detail
+
 } // end namespace io
 
 #endif // CSV_H
