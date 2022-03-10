@@ -340,88 +340,88 @@ public:
 
     explicit LineReader(
         std::shared_ptr<error::error> &err,
-        const std::string &file_name)
+        const std::string &file_name_)
     {
-        set_file_name(file_name.c_str());
-        init(open_file(file_name.c_str(), err));
+        set_file_name(file_name_.c_str());
+        init(open_file(file_name_.c_str(), err));
     }
 
     LineReader(
         std::shared_ptr<error::error> &,
-        const char *file_name,
+        const char *file_name_,
         std::unique_ptr<ByteSourceBase> byte_source)
     {
-        set_file_name(file_name);
+        set_file_name(file_name_);
         init(std::move(byte_source));
     }
 
     LineReader(
         std::shared_ptr<error::error> &,
-        const std::string &file_name,
+        const std::string &file_name_,
         std::unique_ptr<ByteSourceBase> byte_source)
     {
-        set_file_name(file_name.c_str());
+        set_file_name(file_name_.c_str());
         init(std::move(byte_source));
     }
 
     LineReader(
         std::shared_ptr<error::error> &,
-        const char *file_name,
-        const char *data_begin,
-        const char *data_end)
+        const char *file_name_,
+        const char *data_begin_,
+        const char *data_end_)
     {
-        set_file_name(file_name);
+        set_file_name(file_name_);
         init(std::unique_ptr<ByteSourceBase>(
-            new detail::NonOwningStringByteSource(data_begin, data_end-data_begin)));
+            new detail::NonOwningStringByteSource(data_begin_, data_end_-data_begin_)));
     }
 
     LineReader(
         std::shared_ptr<error::error> &,
-        const std::string &file_name,
-        const char *data_begin,
-        const char *data_end)
+        const std::string &file_name_,
+        const char *data_begin_,
+        const char *data_end_)
     {
-        set_file_name(file_name.c_str());
+        set_file_name(file_name_.c_str());
         init(std::unique_ptr<ByteSourceBase>(
-            new detail::NonOwningStringByteSource(data_begin, data_end-data_begin)));
+            new detail::NonOwningStringByteSource(data_begin_, data_end_-data_begin_)));
     }
 
     LineReader(
         std::shared_ptr<error::error> &,
-        const char *file_name,
+        const char *file_name_,
         FILE *file)
     {
-        set_file_name(file_name);
+        set_file_name(file_name_);
         init(std::unique_ptr<ByteSourceBase>(
             new detail::OwningStdIOByteSourceBase(file)));
     }
 
     LineReader(
         std::shared_ptr<error::error> &,
-        const std::string &file_name,
+        const std::string &file_name_,
         FILE *file)
     {
-        set_file_name(file_name.c_str());
+        set_file_name(file_name_.c_str());
         init(std::unique_ptr<ByteSourceBase>(
             new detail::OwningStdIOByteSourceBase(file)));
     }
 
     LineReader(
         std::shared_ptr<error::error> &,
-        const char *file_name,
+        const char *file_name_,
         std::istream &in)
     {
-        set_file_name(file_name);
+        set_file_name(file_name_);
         init(std::unique_ptr<ByteSourceBase>(
             new detail::NonOwningIStreamByteSource(in)));
     }
 
     LineReader(
         std::shared_ptr<error::error> &,
-        const std::string &file_name,
+        const std::string &file_name_,
         std::istream &in)
     {
-        set_file_name(file_name.c_str());
+        set_file_name(file_name_.c_str());
         init(std::unique_ptr<ByteSourceBase>(
             new detail::NonOwningIStreamByteSource(in)));
     }
