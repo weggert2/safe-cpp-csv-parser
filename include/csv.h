@@ -622,6 +622,184 @@ public:
 namespace error
 {
 
+constexpr int max_column_name_length = 63;
+constexpr int max_column_content_length = 63;
+
+class with_column_name
+{
+public:
+    with_column_name()
+    {
+        std::memset(column_name, 0, max_column_name_length+1);
+    }
+
+    void set_column_name(const char *column_name_)
+    {
+        if(column_name_ != nullptr)
+        {
+            std::strncpy(column_name, column_name_, max_column_name_length);
+            column_name[max_column_name_length] = '\0';
+        }
+        else
+        {
+            column_name[0] = '\0';
+        }
+    }
+
+    const char *get_column_name() const { return column_name; }
+private:
+    char column_name[max_column_name_length+1];
+};
+
+class with_column_content
+{
+public:
+    with_column_content()
+    {
+        std::memset(column_content, 0, max_column_content_length+1);
+    }
+
+    void set_column_content(const char *column_content_)
+    {
+        if(column_content_ != nullptr)
+        {
+            std::strncpy(column_content, column_content_, max_column_content_length);
+            column_content[max_column_content_length] = '\0';
+        }
+        else
+        {
+            column_content[0] = '\0';
+        }
+    }
+
+    const char *get_column_content() const { return column_content; }
+
+private:
+    char column_content[max_column_content_length+1];
+};
+
+class extra_column_in_header :
+    public base,
+    public with_file_name,
+    public with_column_name
+{
+public:
+    void format_error_message() const override
+    {
+        std::snprintf(
+            error_message_buffer, sizeof(error_message_buffer),
+            R"(Extra column "%s" in header of file "%s".)",
+            get_column_name(), get_file_name());
+    }
+};
+
+class missing_column_in_header :
+    public base,
+    public with_file_name,
+    public with_column_name
+{
+public:
+    void format_error_message() const override
+    {
+        std::snprintf(
+            error_message_buffer, sizeof(error_message_buffer),
+            R"(Missing column "%s" in header of file "%s".)",
+            get_column_name(), get_file_name());
+    }
+};
+
+class duplicated_column_in_header :
+    public base,
+    public with_file_name,
+    public with_column_name
+{
+public:
+    void format_error_message() const override
+    {
+        std::snprintf(
+            error_message_buffer, sizeof(error_message_buffer),
+            R"(Duplicated column "%s" in header of file "%s".)",
+            get_column_name(), get_file_name());
+    }
+};
+
+class header_missing :
+    public base,
+    public with_file_name
+{
+public:
+    void format_error_message() const override
+    {
+        std::snprintf(
+            error_message_buffer, sizeof(error_message_buffer),
+            "Header missing in file \"%s\".",
+            get_file_name());
+    }
+};
+
+class too_few_columns :
+    public base,
+    public with_file_name,
+    public with_file_line
+{
+public:
+    void format_error_message() const override
+    {
+        std::snprintf(
+            error_message_buffer, sizeof(error_message_buffer),
+            "Too few columns in line %d in file \"%s\".",
+            get_file_line(), get_file_name());
+    }
+};
+
+class too_many_columns :
+    public base,
+    public with_file_name,
+    public with_file_line
+{
+public:
+    void format_error_message() const override
+    {
+        std::snprintf(
+            error_message_buffer, sizeof(error_message_buffer),
+            "Too many columns in line %d in file \"%s\".",
+            get_file_line(), get_file_name());
+    }
+};
+
+class escaped_string_not_closed :
+    public base,
+    public with_file_name,
+    public with_file_line
+{
+public:
+    void format_error_message() const override
+    {
+        std::snprintf(
+            error_message_buffer, sizeof(error_message_buffer),
+            "Escaped string was not closed in line %d in file \"%s\".",
+            get_file_line(), get_file_name());
+    }
+};
+
+class integer_must_be_positive :
+    public base,
+    public with_file_name,
+    public with_file_line,
+    public with_column_name,
+    public with_column_content
+{
+public:
+    void format_error_message() const override
+    {
+        std::snprintf(
+            error_message_buffer, sizeof(error_message_buffer),
+            R"(The integer "%s" must be positive or 0 in column "%s" in file "%s" in line "%d".)",
+            get_column_content(), get_column_name(), get_file_name(), get_file_line());
+    }
+};
+
+
 } // end namespace error
 
 } // end namespace io
