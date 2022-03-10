@@ -869,6 +869,122 @@ public:
 
 } // end namespace error
 
+////////////////////////////////////////////////////////////////////////////
+//                       Quotes and Separators                            //
+////////////////////////////////////////////////////////////////////////////
+
+using ignore_column = unsigned int;
+static constexpr ignore_column ignore_no_column = 0;
+static constexpr ignore_column ignore_extra_column = 1;
+static constexpr ignore_column ignore_missing_column = 2;
+
+template<char ... trim_char_list>
+class trim_chars
+{
+private:
+    constexpr static bool is_trim_char(char c)
+    {
+        (void)c;
+        return false;
+    }
+
+    template<class ...OtherTrimChars>
+    constexpr static bool is_trim_char(
+        char c,
+        char trim_char,
+        OtherTrimChars... other_trim_chars)
+    {
+        return c == trim_char || is_trim_char(c, other_trim_chars...);
+    }
+
+public:
+    static void trim(
+        char *&str_begin,
+        char *&str_end)
+    {
+        while(str_begin != str_end && is_trim_char(*str_begin, trim_char_list...))
+        {
+            ++str_begin;
+        }
+
+        while(str_begin != str_end && is_trim_char(*(str_end-1), trim_char_list...))
+        {
+            --str_end;
+        }
+
+        *str_end = '\0';
+    }
+};
+
+class no_comment
+{
+public:
+    static bool is_comment(const char *c)
+    {
+        (void)c;
+        return false;
+    }
+};
+
+template<char ... comment_start_char_list>
+class single_line_comment
+{
+private:
+    constexpr static bool is_comment_start_char(char c)
+    {
+        (void)c;
+        return false;
+    }
+
+    template<class ...OtherCommentStartChars>
+    constexpr static bool is_comment_start_char(
+        char c,
+        char comment_start_char,
+        OtherCommentStartChars... other_comment_start_chars)
+    {
+        return c == comment_start_char ||
+                    is_comment_start_char(c, other_comment_start_chars...);
+    }
+
+public:
+    static bool is_comment(const char *line)
+    {
+        return is_comment_start_char(*line, comment_start_char_list...);
+    }
+};
+
+class empty_line_comment
+{
+public:
+    static bool is_comment(const char *line)
+    {
+        if (*line == '\0')
+        {
+            return true;
+        }
+        while(*line == ' ' || *line == '\t')
+        {
+            ++line;
+            if(*line == 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+};
+
+template<char ... comment_start_char_list>
+class single_and_empty_line_comment
+{
+public:
+    static bool is_comment(const char *line)
+    {
+        return single_line_comment<comment_start_char_list...>::is_comment(line) ||
+               empty_line_comment::is_comment(line);
+    }
+};
+
 } // end namespace io
 
 #endif // CSV_H
