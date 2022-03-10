@@ -799,6 +799,73 @@ public:
     }
 };
 
+class no_digit :
+    public base,
+    public with_file_name,
+    public with_file_line,
+    public with_column_name,
+    public with_column_content
+{
+public:
+    void format_error_message() const override
+    {
+        std::snprintf(
+            error_message_buffer, sizeof(error_message_buffer),
+            R"(The integer "%s" contains an invalid digit in column "%s" in file "%s" in line "%d".)",
+            get_column_content(), get_column_name(), get_file_name(), get_file_line());
+    }
+};
+
+class integer_overflow :
+    public base,
+    public with_file_name,
+    public with_file_line,
+    public with_column_name,
+    public with_column_content
+{
+public:
+    void format_error_message() const override
+    {
+        std::snprintf(
+            error_message_buffer, sizeof(error_message_buffer),
+            R"(The integer "%s" overflows in column "%s" in file "%s" in line "%d".)",
+            get_column_content(), get_column_name(), get_file_name(), get_file_line());
+    }
+};
+
+class integer_underflow :
+    public base,
+    public with_file_name,
+    public with_file_line,
+    public with_column_name,
+    public with_column_content
+{
+public:
+    void format_error_message() const override
+    {
+        std::snprintf(
+            error_message_buffer, sizeof(error_message_buffer),
+            R"(The integer "%s" underflows in column "%s" in file "%s" in line "%d".)",
+            get_column_content(), get_column_name(), get_file_name(), get_file_line());
+    }
+};
+
+class invalid_single_character :
+    public base,
+    public with_file_name,
+    public with_file_line,
+    public with_column_name,
+    public with_column_content
+{
+public:
+    void format_error_message() const override
+    {
+        std::snprintf(
+            error_message_buffer, sizeof(error_message_buffer),
+            R"(The content "%s" of column "%s" in file "%s" in line "%d" is not a single character.)",
+            get_column_content(), get_column_name(), get_file_name(), get_file_line());
+    }
+};
 
 } // end namespace error
 
