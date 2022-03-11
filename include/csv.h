@@ -65,6 +65,7 @@ static constexpr int max_file_name_length = 255;
 class error
 {
 public:
+    virtual ~error() = default;
     virtual void format_error_message() = 0;
 
     void set_file_name(const std::string &file_name_)           { file_name = file_name_; }
@@ -428,7 +429,7 @@ public:
 
     void set_file_name(const char *file_name_)
     {
-        if(file_name != nullptr)
+        if(file_name_ != nullptr)
         {
             strncpy(file_name, file_name_, sizeof(file_name));
             file_name[sizeof(file_name)-1] = '\0';
