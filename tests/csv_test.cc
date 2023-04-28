@@ -8,7 +8,7 @@ TEST(csv, nominal)
     io::CSVReader<4> reader(err, "1.csv");
     ASSERT_FALSE(err) << err->get_error();
 
-    ASSERT_TRUE(reader.read_header(io::ignore_no_column, err, "a","b","c","d"));
+    ASSERT_TRUE(reader.read_header(err, io::ignore_no_column, "a","b","c","d"));
     ASSERT_FALSE(err) << err->get_error();
 
     int a,b,c,d;
@@ -38,7 +38,7 @@ TEST(csv, extra_column_in_header)
     io::CSVReader<1> reader(err, "2.csv");
     ASSERT_FALSE(err) << err->get_error();
 
-    ASSERT_FALSE(reader.read_header(io::ignore_no_column, err, "a"));
+    ASSERT_FALSE(reader.read_header(err, io::ignore_no_column, "a"));
     ASSERT_TRUE(err);
 
     ASSERT_EQ(
@@ -52,7 +52,7 @@ TEST(csv, missing_column_in_header)
     io::CSVReader<2> reader(err, "3.csv");
     ASSERT_FALSE(err) << err->get_error();
 
-    ASSERT_FALSE(reader.read_header(io::ignore_no_column, err, "a", "b"));
+    ASSERT_FALSE(reader.read_header(err, io::ignore_no_column, "a", "b"));
     ASSERT_TRUE(err);
 
     ASSERT_EQ(
@@ -66,7 +66,7 @@ TEST(csv, duplicated_column_in_header)
     io::CSVReader<2> reader(err, "4.csv");
     ASSERT_FALSE(err) << err->get_error();
 
-    ASSERT_FALSE(reader.read_header(io::ignore_no_column, err, "a", "a"));
+    ASSERT_FALSE(reader.read_header(err, io::ignore_no_column, "a", "a"));
     ASSERT_TRUE(err);
 
     ASSERT_EQ(
@@ -80,7 +80,7 @@ TEST(csv, missing_header)
     io::CSVReader<2> reader(err, "5.csv");
     ASSERT_FALSE(err) << err->get_error();
 
-    ASSERT_FALSE(reader.read_header(io::ignore_no_column, err, "a", "b"));
+    ASSERT_FALSE(reader.read_header(err, io::ignore_no_column, "a", "b"));
     ASSERT_TRUE(err);
 
     ASSERT_EQ(
@@ -94,7 +94,7 @@ TEST(csv, too_few_columns)
     io::CSVReader<2> reader(err, "6.csv");
     ASSERT_FALSE(err) << err->get_error();
 
-    ASSERT_TRUE(reader.read_header(io::ignore_no_column, err, "a", "b"));
+    ASSERT_TRUE(reader.read_header(err, io::ignore_no_column, "a", "b"));
     ASSERT_FALSE(err) << err->get_error();
 
     int a,b;
@@ -114,7 +114,7 @@ TEST(csv, too_many_columns)
     io::CSVReader<2> reader(err, "7.csv");
     ASSERT_FALSE(err) << err->get_error();
 
-    ASSERT_TRUE(reader.read_header(io::ignore_no_column, err, "a", "b"));
+    ASSERT_TRUE(reader.read_header(err, io::ignore_no_column, "a", "b"));
     ASSERT_FALSE(err) << err->get_error();
 
     int a,b;
@@ -140,7 +140,7 @@ TEST(csv, integer_must_be_positive)
     io::CSVReader<2> reader(err, "9.csv");
     ASSERT_FALSE(err) << err->get_error();
 
-    ASSERT_TRUE(reader.read_header(io::ignore_no_column, err, "a", "b"));
+    ASSERT_TRUE(reader.read_header(err, io::ignore_no_column, "a", "b"));
     ASSERT_FALSE(err) << err->get_error();
 
     size_t a,b;
@@ -159,7 +159,7 @@ TEST(csv, no_digit)
     io::CSVReader<2> reader(err, "10.csv");
     ASSERT_FALSE(err) << err->get_error();
 
-    ASSERT_TRUE(reader.read_header(io::ignore_no_column, err, "a", "b"));
+    ASSERT_TRUE(reader.read_header(err, io::ignore_no_column, "a", "b"));
     ASSERT_FALSE(err) << err->get_error();
 
     int a,b;
