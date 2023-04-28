@@ -9,7 +9,6 @@ Most of this README is copied directly from fast-cpp-csv-parser, with minor edit
 ## Features
 
   * Automatically rearranges columns by parsing the header line.
-  * Disk I/O and CSV-parsing are overlapped using threads for efficiency.
   * Parsing features such as escaped strings can be enabled and disabled at compile time using templates. You only pay in speed for the features you actually use.
   * Can read multiple GB files in reasonable time.
   * Support for custom columns separators (i.e. Tab separated value files are supported), quote escaped strings, automatic space trimming. 
@@ -82,7 +81,7 @@ public:
 };
 ```
 
-The constructor takes a file name and optionally a data source. If no data source is provided the function tries to open the file with the given name and throws an `error::can_not_open_file exception` on failure. If a data source is provided then the file name is only used to format error messages. In that case you can essentially put any string there. Using a string that describes the data source results in more informative error messages.
+The constructor takes a file name and optionally a data source. If no data source is provided the function tries to open the file with the given name and populates the error. If a data source is provided then the file name is only used to format error messages. In that case you can essentially put any string there. Using a string that describes the data source results in more informative error messages.
 
 `some_string_type` can be a `std::string` or a `char*`. If the data source is a `std::FILE*` then the library will take care of calling `std::fclose`. If it is a `std::istream` then the stream is not closed by the library. For best performance open the streams in binary mode. However using text mode also works. `ByteSourceBase` provides an interface that you can use to implement further data sources. 
 
@@ -94,11 +93,11 @@ public:
 };
 ```
 
-The read function should fill the provided buffer with at most `size` bytes from the data source. It should return the number of bytes actually written to the buffer. If data source has run out of bytes (because for example an end of file was reached) then the function should return 0. If a fatal error occures then you can throw an exception. Note that the function can be called both from the main and the worker thread. However, it is guarenteed that they do not call the function at the same time. 
+The read function should fill the provided buffer with at most `size` bytes from the data source. It should return the number of bytes actually written to the buffer. If data source has run out of bytes (because for example an end of file was reached) then the function should return 0.
 
 Lines are read by calling the `next_line` function. It returns a pointer to a null terminated C-string that contains the line. If the end of file is reached a null pointer is returned. The newline character is not included in the string. You may modify the string as long as you do not write past the null terminator. The string stays valid until the destructor is called or until next_line is called again. Windows and `*`nix newlines are handled transparently. UTF-8 BOMs are automatically ignored and missing newlines at the end of the file are no problem.
 
-**Important:** There is a limit of 2^24-1 characters per line. If this limit is exceeded a `error::line_length_limit_exceeded` exception is thrown.
+**Important:** There is a limit of 2^24-1 characters per line. If this limit is exceeded a `error::line_length_limit_exceeded` error is populated.
 
 Looping over all the lines in a file can be done in the following way.
 ```cpp
@@ -108,7 +107,7 @@ while(char *line = in.next_line(err)){
 }
 ```
 
-The remaining functions are mainly used used to format error messages. The file line indicates the current position in the file, i.e., after the first `next_line` call it is 1 and after the second 2. Before the first call it is 0. The file name is truncated as internally C-strings are used to avoid `std::bad_alloc` exceptions during error reporting.
+The remaining functions are mainly used used to format error messages. The file line indicates the current position in the file, i.e., after the first `next_line` call it is 1 and after the second 2. Before the first call it is 0. The file name is truncated as internally C-strings are used to avoid `std::bad_alloc` errors during error reporting.
 
 **Note:** It is not possible to exchange the line termination character.
 
@@ -190,11 +189,11 @@ The comment policy allows to skip lines based on some criteria. Valid predefined
 Examples:
 
   * `CSVReader<4, trim_chars<' '>, double_quote_escape<',','\"'> >` reads 4 columns from a normal CSV file with string escaping enabled.
-  * `CSVReader<3, trim_chars<' '>, no_quote_escape<'\t'>, throw_on_overflow, single_line_comment<'#'> >` reads 3 columns from a tab separated file with string escaping disabled. Lines starting with a # are ignored.
+  * `CSVReader<3, trim_chars<' '>, no_quote_escape<'\t'>, set_to_max_on_overflow, single_line_comment<'#'> >` reads 3 columns from a tab separated file with string escaping disabled. Lines starting with a # are ignored.
 
 The constructors and the file location functions are exactly the same as for `LineReader`. See its documentation for details.
 
-There are three methods that deal with headers. The `read_header` methods reads a line from the file and rearranges the columns to match that order. It also checks whether all necessary columns are present. The `set_header` method does *not* read any input. Use it if the file does not have any header. Obviously it is impossible to rearrange columns or check for their availability when using it. The order in the file and in the program must match when using `set_header`. The `has_column` method checks whether a column is present in the file. The first argument of `read_header` is a bitfield that determines how the function should react to column mismatches. The default behavior is to throw an `error::extra_column_in_header` exception if the file contains more columns than expected and an `error::missing_column_in_header` when there are not enough. This behavior can be altered using the following flags.
+There are three methods that deal with headers. The `read_header` methods reads a line from the file and rearranges the columns to match that order. It also checks whether all necessary columns are present. The `set_header` method does *not* read any input. Use it if the file does not have any header. Obviously it is impossible to rearrange columns or check for their availability when using it. The order in the file and in the program must match when using `set_header`. The `has_column` method checks whether a column is present in the file. The first argument of `read_header` is a bitfield that determines how the function should react to column mismatches. The default behavior is to populate an `error::extra_column_in_header` error if the file contains more columns than expected and an `error::missing_column_in_header` when there are not enough. This behavior can be altered using the following flags.
 
   * `ignore_no_column`: The default behavior, no flags are set
   * `ignore_extra_column`: If a column with a name is in the file but not in the argument list, then it is silently ignored.
@@ -233,7 +232,7 @@ while(in.read_row(err,a,b,sum)){
 
 **Important**: Do not call `has_column` from within the read-loop. It would work correctly but significantly slowdown processing.
 
-If two columns have the same name an error::duplicated_column_in_header exception is thrown. If `read_header` is called but the file is empty a `error::header_missing` exception is thrown.
+If two columns have the same name an error::duplicated_column_in_header error is populated. If `read_header` is called but the file is empty a `error::header_missing` error is populated.
 
 The `next_line` functions reads a line without parsing it. It works analogous to `LineReader::next_line`. This can be used to skip broken lines in a CSV file. However, in nearly all applications you will want to use the `read_row` function.
 
